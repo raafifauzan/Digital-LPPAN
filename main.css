@@ -1,0 +1,13 @@
+/* Keep file for optional custom polish beyond Tailwind utilities */
+body {
+  background-image: radial-gradient(circle at 12% 6%, rgba(22, 163, 74, 0.08), transparent 24%),
+    radial-gradient(circle at 88% 8%, rgba(15, 23, 42, 0.05), transparent 26%);
+}
+
+tbody tr:nth-child(even) {
+  background: #fcfdff;
+}
+
+tbody tr:hover {
+  background: #f0fdf4;
+}
