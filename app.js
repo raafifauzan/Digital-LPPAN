@@ -363,8 +363,24 @@ function countByBucket(rows, key, buckets) {
   return result;
 }
 
+function getSelectedCategory() {
+  const selectedCategoryMap = {
+    core: "Core",
+    decision_support: "Decision Support",
+    support: "Support",
+    product: "Product"
+  };
+  return selectedCategoryMap[state.analyticsView] || null;
+}
+
+function getCategoryScopedRows(rows = state.allApps) {
+  const selectedCategory = getSelectedCategory();
+  if (!selectedCategory) return rows;
+  return rows.filter((app) => app.category === selectedCategory);
+}
+
 function getChartRows() {
-  return state.allApps.filter((app) => app.mandatoryComplete);
+  return getCategoryScopedRows(state.allApps).filter((app) => app.mandatoryComplete);
 }
 
 function buildAppModel(csvRows) {
@@ -404,11 +420,12 @@ function buildAppModel(csvRows) {
 }
 
 function renderKPIs() {
-  const total = state.allApps.length;
-  const active = state.allApps.filter((app) => app.status === "Active").length;
-  const needingImprovement = state.allApps.filter((app) => app.needsImprovement).length;
+  const scopedRows = getCategoryScopedRows(state.allApps);
+  const total = scopedRows.length;
+  const active = scopedRows.filter((app) => app.status === "Active").length;
+  const needingImprovement = scopedRows.filter((app) => app.needsImprovement).length;
   const completeness = total
-    ? (state.allApps.filter((app) => app.mandatoryComplete).length / total) * 100
+    ? (scopedRows.filter((app) => app.mandatoryComplete).length / total) * 100
     : 0;
 
   els.kpiGrid.innerHTML = `
@@ -464,18 +481,19 @@ function renderKPIs() {
 }
 
 function renderInsight() {
-  const total = state.allApps.length;
-  const statusDist = countByBucket(state.allApps, "status", STATUS_BUCKETS);
-  const criticalityDist = countByBucket(state.allApps, "criticality", CRITICALITY_BUCKETS);
-  const categoryDist = countByBucket(state.allApps, "category", CATEGORY_BUCKETS);
-  const roadmapDist = countByBucket(state.allApps, "roadmap", ROADMAP_BUCKETS);
-  const riskExposure = state.allApps.filter(
+  const scopedRows = getCategoryScopedRows(state.allApps);
+  const total = scopedRows.length;
+  const statusDist = countByBucket(scopedRows, "status", STATUS_BUCKETS);
+  const criticalityDist = countByBucket(scopedRows, "criticality", CRITICALITY_BUCKETS);
+  const categoryDist = countByBucket(scopedRows, "category", CATEGORY_BUCKETS);
+  const roadmapDist = countByBucket(scopedRows, "roadmap", ROADMAP_BUCKETS);
+  const riskExposure = scopedRows.filter(
     (app) => app.criticality === "High" || app.roadmap === "Need Enhancement" || !app.mandatoryComplete
   ).length;
 
   const topCategory = Object.entries(categoryDist).sort((a, b) => b[1] - a[1])[0] || ["Unknown", 0];
   const completeness = total
-    ? (state.allApps.filter((app) => app.mandatoryComplete).length / total) * 100
+    ? (scopedRows.filter((app) => app.mandatoryComplete).length / total) * 100
     : 0;
 
   els.insightSummary.textContent = `Dari ${total} aplikasi, eksposur risiko saat ini ada pada ${riskExposure} aplikasi, terutama dari ${criticalityDist.High} High Criticality dan ${roadmapDist["Need Enhancement"]} Need Enhancement. Kategori terbesar adalah ${topCategory[0]} (${topCategory[1]} aplikasi), dengan data completeness ${completeness.toFixed(1)}% dan ${statusDist.Unknown} status masih Unknown.`;
@@ -486,17 +504,8 @@ function renderOverviewChart() {
   const compactView = window.matchMedia("(max-width: 1280px)").matches;
 
   const chartRows = getChartRows();
-  const selectedCategoryMap = {
-    core: "Core",
-    decision_support: "Decision Support",
-    support: "Support",
-    product: "Product"
-  };
-
-  const selectedCategory = selectedCategoryMap[state.analyticsView];
-  const filteredRows = selectedCategory
-    ? chartRows.filter((app) => app.category === selectedCategory)
-    : chartRows;
+  const selectedCategory = getSelectedCategory();
+  const filteredRows = chartRows;
 
   const dist = countByBucket(filteredRows, "category", CATEGORY_CHART_BUCKETS);
   if (els.overviewSubtitle) {
@@ -556,12 +565,13 @@ function renderSecondaryCharts() {
   const compactView = window.matchMedia("(max-width: 1280px)").matches;
 
   const chartRows = getChartRows();
+  const scopedRows = getCategoryScopedRows(state.allApps);
   const criticalityDist = countByBucket(chartRows, "criticality", CRITICALITY_CHART_BUCKETS);
   const maturityDist = countByBucket(chartRows, "maturity", MATURITY_CHART_BUCKETS);
   const statusDist = countByBucket(chartRows, "status", STATUS_CHART_BUCKETS);
   const ownerCountMap = {};
   const ownerLabelMap = {};
-  state.allApps.forEach((app) => {
+  scopedRows.forEach((app) => {
     const owners = splitDataOwners(app.dataOwner);
     if (!owners.length) return;
 
@@ -590,7 +600,7 @@ function renderSecondaryCharts() {
   });
 
   const yearCountMap = {};
-  state.allApps.forEach((app) => {
+  scopedRows.forEach((app) => {
     if (app.implementationYear === "Unknown") return;
     yearCountMap[app.implementationYear] = (yearCountMap[app.implementationYear] || 0) + 1;
   });
@@ -749,10 +759,11 @@ function renderSecondaryCharts() {
 }
 
 function renderSnapshot() {
-  const highCritical = state.allApps.filter((app) => app.criticality === "High").length;
-  const needEnhancement = state.allApps.filter((app) => app.roadmap === "Need Enhancement").length;
-  const incomplete = state.allApps.filter((app) => !app.mandatoryComplete).length;
-  const riskExposure = state.allApps.filter(
+  const scopedRows = getCategoryScopedRows(state.allApps);
+  const highCritical = scopedRows.filter((app) => app.criticality === "High").length;
+  const needEnhancement = scopedRows.filter((app) => app.roadmap === "Need Enhancement").length;
+  const incomplete = scopedRows.filter((app) => !app.mandatoryComplete).length;
+  const riskExposure = scopedRows.filter(
     (app) => app.criticality === "High" || app.roadmap === "Need Enhancement" || !app.mandatoryComplete
   ).length;
 
@@ -764,7 +775,7 @@ function renderSnapshot() {
 
 function getFilteredRows() {
   const q = normalize(state.projectSearch);
-  return state.allApps.filter((app) => {
+  return getCategoryScopedRows(state.allApps).filter((app) => {
     if (q && !normalize(app.name).includes(q)) return false;
     if (state.filterActiveOnly && app.status !== "Active") return false;
     if (state.filterHighCritical && app.criticality !== "High") return false;
@@ -900,8 +911,32 @@ function renderActiveFiltersText() {
   if (state.filterNeedEnhancement) filters.push("Need Enhancement");
   if (state.filterIncompleteData) filters.push("Incomplete Data");
   if (state.projectSearch?.trim()) filters.push(`Search: "${state.projectSearch.trim()}"`);
+  const selectedCategory = getSelectedCategory();
+  if (selectedCategory) filters.push(`Category: ${selectedCategory}`);
 
   els.activeFiltersText.textContent = `Active filters: ${filters.length ? filters.join(", ") : "All Data"}`;
+}
+
+function resetAllFilters() {
+  state.projectSearch = "";
+  state.currentPage = 1;
+  state.analyticsView = "all";
+
+  if (els.projectSearch) els.projectSearch.value = "";
+
+  setCustomDropdownValue(els.quickFilter, els.quickFilterLabel, "all", "All Data", els.quickFilterMenu);
+  setCustomDropdownValue(
+    els.analyticsView,
+    els.analyticsViewLabel,
+    "all",
+    "All Categories",
+    els.analyticsViewMenu
+  );
+
+  state.filterActiveOnly = false;
+  state.filterHighCritical = false;
+  state.filterNeedEnhancement = false;
+  state.filterIncompleteData = false;
 }
 
 function setCustomDropdownValue(inputEl, labelEl, value, labelText, menuEl) {
@@ -1229,20 +1264,15 @@ function bindEvents() {
 
   if (els.quickFilterReset) {
     els.quickFilterReset.addEventListener("click", () => {
-      state.projectSearch = "";
-      if (els.projectSearch) els.projectSearch.value = "";
-
-      setCustomDropdownValue(els.quickFilter, els.quickFilterLabel, "all", "All Data", els.quickFilterMenu);
-      applyQuickFilter("all");
+      resetAllFilters();
+      renderAll();
     });
   }
 
   if (els.clearTableFiltersBtn) {
     els.clearTableFiltersBtn.addEventListener("click", () => {
-      state.projectSearch = "";
-      if (els.projectSearch) els.projectSearch.value = "";
-      setCustomDropdownValue(els.quickFilter, els.quickFilterLabel, "all", "All Data", els.quickFilterMenu);
-      applyQuickFilter("all");
+      resetAllFilters();
+      renderAll();
     });
   }
 
@@ -1265,7 +1295,8 @@ function bindEvents() {
     fallbackLabel: "All Categories",
     onSelect: (selectedValue) => {
       state.analyticsView = selectedValue || "all";
-      renderOverviewChart();
+      state.currentPage = 1;
+      renderAll();
     }
   });
 
