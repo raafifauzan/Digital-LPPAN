@@ -45,10 +45,30 @@
         </div>
         <nav class="flex-1 px-4 py-6">
           <ul class="space-y-3">
-            <li class="h-11 rounded-xl grid place-items-center bg-brand-50 text-brand-600"><span class="material-symbols-outlined">grid_view</span></li>
-            <li class="h-11 rounded-xl grid place-items-center text-slate-400 bg-slate-50"><span class="material-symbols-outlined">inventory_2</span></li>
-            <li class="h-11 rounded-xl grid place-items-center text-slate-400 bg-slate-50"><span class="material-symbols-outlined">monitoring</span></li>
-            <li class="h-11 rounded-xl grid place-items-center text-slate-400 bg-slate-50"><span class="material-symbols-outlined">settings</span></li>
+            <li class="group relative">
+              <button type="button" aria-label="Overview" class="sidebar-item sidebar-item-active h-11 w-full rounded-xl grid place-items-center text-brand-700">
+                <span class="material-symbols-outlined">grid_view</span>
+              </button>
+              <span class="sidebar-tooltip">Overview</span>
+            </li>
+            <li class="group relative">
+              <button type="button" aria-label="Application Catalog" class="sidebar-item h-11 w-full rounded-xl grid place-items-center text-slate-500">
+                <span class="material-symbols-outlined">inventory_2</span>
+              </button>
+              <span class="sidebar-tooltip">Application Catalog</span>
+            </li>
+            <li class="group relative">
+              <button type="button" aria-label="Monitoring" class="sidebar-item h-11 w-full rounded-xl grid place-items-center text-slate-500">
+                <span class="material-symbols-outlined">monitoring</span>
+              </button>
+              <span class="sidebar-tooltip">Monitoring</span>
+            </li>
+            <li class="group relative">
+              <button type="button" aria-label="Settings" class="sidebar-item h-11 w-full rounded-xl grid place-items-center text-slate-500">
+                <span class="material-symbols-outlined">settings</span>
+              </button>
+              <span class="sidebar-tooltip">Settings</span>
+            </li>
           </ul>
         </nav>
       </aside>
@@ -108,7 +128,7 @@
           <p id="errorText" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></p>
 
           <section id="summarySection" class="grid gap-5 xl:grid-cols-12 xl:items-stretch">
-            <article class="rounded-2xl border border-[#0b3d20] bg-[#0b3d20] p-5 shadow-card xl:col-span-4">
+            <article id="executiveSummaryCard" class="executive-card rounded-2xl border border-[#0b3d20] bg-[#0b3d20] p-5 shadow-card xl:col-span-4">
               <h3 class="text-base font-semibold text-white">Executive Summary</h3>
               <p class="mt-2 text-[13px] leading-5 text-justify text-emerald-50/85" id="insightSummary">
                 Insight will appear after data is loaded.
@@ -235,10 +255,8 @@
                 <p class="text-sm text-slate-500">Operational view for quick management review</p>
               </div>
               <div class="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><input id="filterActiveOnly" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500" /> Active Only</label>
-                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><input id="filterHighCritical" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500" /> High Criticality</label>
-                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><input id="filterNeedEnhancement" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500" /> Need Enhancement</label>
-                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><input id="filterIncompleteData" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500" /> Incomplete Data</label>
+                <span id="activeFiltersText" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">Active filters: All Data</span>
+                <button id="clearTableFiltersBtn" type="button" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-600 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700">Clear</button>
               </div>
             </div>
 

@@ -49,10 +49,8 @@ const els = {
   snapshotIncomplete: document.getElementById("snapshotIncomplete"),
   snapshotRiskExposure: document.getElementById("snapshotRiskExposure"),
 
-  filterActiveOnly: document.getElementById("filterActiveOnly"),
-  filterHighCritical: document.getElementById("filterHighCritical"),
-  filterNeedEnhancement: document.getElementById("filterNeedEnhancement"),
-  filterIncompleteData: document.getElementById("filterIncompleteData"),
+  activeFiltersText: document.getElementById("activeFiltersText"),
+  clearTableFiltersBtn: document.getElementById("clearTableFiltersBtn"),
   quickFilterDropdown: document.getElementById("quickFilterDropdown"),
   quickFilter: document.getElementById("quickFilter"),
   quickFilterBtn: document.getElementById("quickFilterBtn"),
@@ -83,6 +81,10 @@ let implementationYearBarChart;
 let projectSearchTimer;
 let loadAbortController;
 let chartReflowTimer;
+let cursorBgRaf;
+let lastCursorBgUpdate = 0;
+let lastCursorX = 12;
+let lastCursorY = 6;
 
 if (window.Chart) {
   Chart.defaults.font.family = '"Plus Jakarta Sans", "Helvetica", "Arial", sans-serif';
@@ -410,7 +412,7 @@ function renderKPIs() {
     : 0;
 
   els.kpiGrid.innerHTML = `
-    <article class="h-full min-h-[122px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-card flex flex-col justify-between">
+    <article class="kpi-card h-full min-h-[122px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-card flex flex-col justify-between">
       <div class="flex items-start justify-between">
         <div class="h-8 w-8 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">
           <span class="material-symbols-outlined">apps</span>
@@ -418,11 +420,11 @@ function renderKPIs() {
         <span class="rounded-full bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-700">Portfolio</span>
       </div>
       <div class="pt-3 text-right">
-        <p class="text-4xl leading-none font-semibold text-[#0b3d20]">${total}</p>
+        <p class="kpi-value text-4xl leading-none font-semibold text-[#0b3d20]">${total}</p>
         <p class="mt-3 text-xs text-slate-500">Total Applications</p>
       </div>
     </article>
-    <article class="h-full min-h-[122px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-card flex flex-col justify-between">
+    <article class="kpi-card h-full min-h-[122px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-card flex flex-col justify-between">
       <div class="flex items-start justify-between">
         <div class="h-8 w-8 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">
           <span class="material-symbols-outlined">task_alt</span>
@@ -430,11 +432,11 @@ function renderKPIs() {
         <span class="rounded-full bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-700">Status</span>
       </div>
       <div class="pt-3 text-right">
-        <p class="text-4xl leading-none font-semibold text-[#0b3d20]">${active}</p>
+        <p class="kpi-value text-4xl leading-none font-semibold text-[#0b3d20]">${active}</p>
         <p class="mt-3 text-xs text-slate-500">Active Applications</p>
       </div>
     </article>
-    <article class="h-full min-h-[122px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-card flex flex-col justify-between">
+    <article class="kpi-card h-full min-h-[122px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-card flex flex-col justify-between">
       <div class="flex items-start justify-between">
         <div class="h-8 w-8 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">
           <span class="material-symbols-outlined">construction</span>
@@ -442,11 +444,11 @@ function renderKPIs() {
         <span class="rounded-full bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-700">Attention</span>
       </div>
       <div class="pt-3 text-right">
-        <p class="text-4xl leading-none font-semibold text-[#0b3d20]">${needingImprovement}</p>
+        <p class="kpi-value text-4xl leading-none font-semibold text-[#0b3d20]">${needingImprovement}</p>
         <p class="mt-3 text-xs text-slate-500">Need Enhancement</p>
       </div>
     </article>
-    <article class="h-full min-h-[122px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-card flex flex-col justify-between">
+    <article class="kpi-card h-full min-h-[122px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-card flex flex-col justify-between">
       <div class="flex items-start justify-between">
         <div class="h-8 w-8 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">
           <span class="material-symbols-outlined">dataset</span>
@@ -454,7 +456,7 @@ function renderKPIs() {
         <span class="rounded-full bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-700">Quality</span>
       </div>
       <div class="pt-3 text-right">
-        <p class="text-4xl leading-none font-semibold text-[#0b3d20]">${completeness.toFixed(1)}%</p>
+        <p class="kpi-value text-4xl leading-none font-semibold text-[#0b3d20]">${completeness.toFixed(1)}%</p>
         <p class="mt-3 text-xs text-slate-500">Data Completeness</p>
       </div>
     </article>
@@ -604,15 +606,17 @@ function renderSecondaryCharts() {
         {
           data: CRITICALITY_CHART_BUCKETS.map((bucket) => criticalityDist[bucket]),
           backgroundColor: CHART_GREEN_SCALE.slice(0, 3),
-          borderWidth: 0
+          borderWidth: 0,
+          offset: (context) => (context.dataIndex === 0 ? 16 : 0),
+          hoverOffset: 14
         }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      radius: "78%",
-      cutout: "50%",
+      radius: "85%",
+      cutout: "40%",
       plugins: {
         legend: {
           position: "bottom",
@@ -771,6 +775,8 @@ function getFilteredRows() {
 }
 
 function renderTable() {
+  renderActiveFiltersText();
+
   const sortedRows = getFilteredRows().sort((a, b) => {
     const criticalityOrder = CRITICALITY_BUCKETS.indexOf(a.criticality) - CRITICALITY_BUCKETS.indexOf(b.criticality);
     if (criticalityOrder !== 0) return criticalityOrder;
@@ -827,7 +833,7 @@ function renderTable() {
     els.monitoringTableBody.innerHTML = rows
       .map(
         (app) => `
-          <tr class="border-b border-slate-100 align-middle">
+          <tr class="align-middle">
             <td class="px-4 py-3 font-medium text-slate-700 break-words align-middle">${escapeHtml(app.name)}</td>
             <td class="px-4 py-3 text-center align-middle">${renderBadgeOrDash("status", app.status)}</td>
             <td class="px-4 py-3 text-slate-600 break-words align-middle">${escapeHtml(displayText(app.category))}</td>
@@ -881,13 +887,21 @@ function applyQuickFilter(value) {
   state.filterNeedEnhancement = value === "enhancement";
   state.filterIncompleteData = value === "incomplete";
 
-  els.filterActiveOnly.checked = state.filterActiveOnly;
-  els.filterHighCritical.checked = state.filterHighCritical;
-  els.filterNeedEnhancement.checked = state.filterNeedEnhancement;
-  els.filterIncompleteData.checked = state.filterIncompleteData;
-
   state.currentPage = 1;
   renderTable();
+}
+
+function renderActiveFiltersText() {
+  if (!els.activeFiltersText) return;
+
+  const filters = [];
+  if (state.filterActiveOnly) filters.push("Active Only");
+  if (state.filterHighCritical) filters.push("High Criticality");
+  if (state.filterNeedEnhancement) filters.push("Need Enhancement");
+  if (state.filterIncompleteData) filters.push("Incomplete Data");
+  if (state.projectSearch?.trim()) filters.push(`Search: "${state.projectSearch.trim()}"`);
+
+  els.activeFiltersText.textContent = `Active filters: ${filters.length ? filters.join(", ") : "All Data"}`;
 }
 
 function setCustomDropdownValue(inputEl, labelEl, value, labelText, menuEl) {
@@ -1074,10 +1088,7 @@ function setLoadingState(isLoading) {
     els.quickFilterBtn,
     els.analyticsViewBtn,
     els.quickFilterReset,
-    els.filterActiveOnly,
-    els.filterHighCritical,
-    els.filterNeedEnhancement,
-    els.filterIncompleteData,
+    els.clearTableFiltersBtn,
     els.prevPageBtn,
     els.nextPageBtn
   ];
@@ -1206,30 +1217,6 @@ function bindEvents() {
     });
   }
 
-  els.filterHighCritical.addEventListener("change", (event) => {
-    state.filterHighCritical = event.target.checked;
-    state.currentPage = 1;
-    renderTable();
-  });
-
-  els.filterActiveOnly.addEventListener("change", (event) => {
-    state.filterActiveOnly = event.target.checked;
-    state.currentPage = 1;
-    renderTable();
-  });
-
-  els.filterNeedEnhancement.addEventListener("change", (event) => {
-    state.filterNeedEnhancement = event.target.checked;
-    state.currentPage = 1;
-    renderTable();
-  });
-
-  els.filterIncompleteData.addEventListener("change", (event) => {
-    state.filterIncompleteData = event.target.checked;
-    state.currentPage = 1;
-    renderTable();
-  });
-
   els.prevPageBtn.addEventListener("click", () => {
     if (state.currentPage > 1) state.currentPage -= 1;
     renderTable();
@@ -1245,6 +1232,15 @@ function bindEvents() {
       state.projectSearch = "";
       if (els.projectSearch) els.projectSearch.value = "";
 
+      setCustomDropdownValue(els.quickFilter, els.quickFilterLabel, "all", "All Data", els.quickFilterMenu);
+      applyQuickFilter("all");
+    });
+  }
+
+  if (els.clearTableFiltersBtn) {
+    els.clearTableFiltersBtn.addEventListener("click", () => {
+      state.projectSearch = "";
+      if (els.projectSearch) els.projectSearch.value = "";
       setCustomDropdownValue(els.quickFilter, els.quickFilterLabel, "all", "All Data", els.quickFilterMenu);
       applyQuickFilter("all");
     });
@@ -1332,6 +1328,26 @@ function bindEvents() {
   window.addEventListener("orientationchange", triggerChartReflow);
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", triggerChartReflow);
+  }
+
+  if (window.matchMedia("(pointer: fine)").matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    document.addEventListener("mousemove", (event) => {
+      if (cursorBgRaf) cancelAnimationFrame(cursorBgRaf);
+      cursorBgRaf = requestAnimationFrame(() => {
+        const now = performance.now();
+        if (now - lastCursorBgUpdate < 32) return;
+
+        const x = (event.clientX / window.innerWidth) * 100;
+        const y = (event.clientY / window.innerHeight) * 100;
+        if (Math.abs(x - lastCursorX) < 0.6 && Math.abs(y - lastCursorY) < 0.6) return;
+
+        document.body.style.setProperty("--cursor-x", `${x.toFixed(2)}%`);
+        document.body.style.setProperty("--cursor-y", `${y.toFixed(2)}%`);
+        lastCursorX = x;
+        lastCursorY = y;
+        lastCursorBgUpdate = now;
+      });
+    });
   }
 }
 
