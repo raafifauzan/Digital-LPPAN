@@ -28,7 +28,10 @@ tbody tr:hover {
 }
 
 .kpi-value {
-  transition: background-image 180ms ease, color 180ms ease;
+  background-image: none;
+  color: #0b3d20;
+  -webkit-text-fill-color: #0b3d20;
+  transition: color 140ms ease;
 }
 
 .kpi-card:hover .kpi-value {
@@ -36,6 +39,13 @@ tbody tr:hover {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.kpi-card:not(:hover) .kpi-value {
+  background-image: none;
+  color: #0b3d20;
+  -webkit-text-fill-color: #0b3d20;
 }
 
 .sidebar-item {
