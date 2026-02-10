@@ -379,8 +379,20 @@ function getCategoryScopedRows(rows = state.allApps) {
   return rows.filter((app) => app.category === selectedCategory);
 }
 
+function passesQuickFilter(app) {
+  if (state.filterActiveOnly && app.status !== "Active") return false;
+  if (state.filterHighCritical && app.criticality !== "High") return false;
+  if (state.filterNeedEnhancement && app.roadmap !== "Need Enhancement") return false;
+  if (state.filterIncompleteData && app.mandatoryComplete) return false;
+  return true;
+}
+
+function getDashboardRows() {
+  return getCategoryScopedRows(state.allApps).filter(passesQuickFilter);
+}
+
 function getChartRows() {
-  return getCategoryScopedRows(state.allApps).filter((app) => app.mandatoryComplete);
+  return getDashboardRows().filter((app) => app.mandatoryComplete);
 }
 
 function buildAppModel(csvRows) {
@@ -420,7 +432,7 @@ function buildAppModel(csvRows) {
 }
 
 function renderKPIs() {
-  const scopedRows = getCategoryScopedRows(state.allApps);
+  const scopedRows = getDashboardRows();
   const total = scopedRows.length;
   const active = scopedRows.filter((app) => app.status === "Active").length;
   const needingImprovement = scopedRows.filter((app) => app.needsImprovement).length;
@@ -481,7 +493,7 @@ function renderKPIs() {
 }
 
 function renderInsight() {
-  const scopedRows = getCategoryScopedRows(state.allApps);
+  const scopedRows = getDashboardRows();
   const total = scopedRows.length;
   const statusDist = countByBucket(scopedRows, "status", STATUS_BUCKETS);
   const criticalityDist = countByBucket(scopedRows, "criticality", CRITICALITY_BUCKETS);
@@ -565,7 +577,7 @@ function renderSecondaryCharts() {
   const compactView = window.matchMedia("(max-width: 1280px)").matches;
 
   const chartRows = getChartRows();
-  const scopedRows = getCategoryScopedRows(state.allApps);
+  const scopedRows = getDashboardRows();
   const criticalityDist = countByBucket(chartRows, "criticality", CRITICALITY_CHART_BUCKETS);
   const maturityDist = countByBucket(chartRows, "maturity", MATURITY_CHART_BUCKETS);
   const statusDist = countByBucket(chartRows, "status", STATUS_CHART_BUCKETS);
@@ -759,7 +771,7 @@ function renderSecondaryCharts() {
 }
 
 function renderSnapshot() {
-  const scopedRows = getCategoryScopedRows(state.allApps);
+  const scopedRows = getDashboardRows();
   const highCritical = scopedRows.filter((app) => app.criticality === "High").length;
   const needEnhancement = scopedRows.filter((app) => app.roadmap === "Need Enhancement").length;
   const incomplete = scopedRows.filter((app) => !app.mandatoryComplete).length;
@@ -775,12 +787,8 @@ function renderSnapshot() {
 
 function getFilteredRows() {
   const q = normalize(state.projectSearch);
-  return getCategoryScopedRows(state.allApps).filter((app) => {
+  return getDashboardRows().filter((app) => {
     if (q && !normalize(app.name).includes(q)) return false;
-    if (state.filterActiveOnly && app.status !== "Active") return false;
-    if (state.filterHighCritical && app.criticality !== "High") return false;
-    if (state.filterNeedEnhancement && app.roadmap !== "Need Enhancement") return false;
-    if (state.filterIncompleteData && app.mandatoryComplete) return false;
     return true;
   });
 }
@@ -899,7 +907,7 @@ function applyQuickFilter(value) {
   state.filterIncompleteData = value === "incomplete";
 
   state.currentPage = 1;
-  renderTable();
+  renderAll();
 }
 
 function renderActiveFiltersText() {
