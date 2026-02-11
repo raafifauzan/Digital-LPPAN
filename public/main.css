@@ -127,6 +127,50 @@ tbody tr:hover {
   opacity: 1;
 }
 
+@keyframes askAiGradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes askAiHalo {
+  0%,
+  100% {
+    box-shadow: 0 10px 24px rgba(34, 197, 94, 0.35), 0 0 0 0 rgba(34, 197, 94, 0.24);
+  }
+  50% {
+    box-shadow: 0 16px 28px rgba(16, 185, 129, 0.48), 0 0 0 8px rgba(16, 185, 129, 0.08);
+  }
+}
+
+@keyframes askAiSparkle {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(16deg) scale(1.08);
+  }
+}
+
+.ask-ai-fab {
+  border: 1px solid rgba(187, 247, 208, 0.7);
+  background: linear-gradient(120deg, #0f7d3f 0%, #16a34a 35%, #0ea5a4 70%, #16a34a 100%);
+  background-size: 220% 220%;
+  animation: askAiGradientShift 3.6s linear infinite, askAiHalo 2.4s ease-in-out infinite;
+}
+
+.ask-ai-fab:hover {
+  filter: saturate(1.08) brightness(1.03);
+}
+
+.ask-ai-fab-icon {
+  animation: askAiSparkle 2.1s ease-in-out infinite;
+}
+
 /* Dark theme */
 html.theme-dark body {
   color: #d8e3f1;
@@ -283,5 +327,7 @@ html.theme-dark #askAiInput {
 }
 
 html.theme-dark #askAiFab {
+  border-color: rgba(52, 211, 153, 0.5);
+  background: linear-gradient(120deg, #127a47 0%, #16a34a 35%, #0ea5a4 70%, #22c55e 100%);
   box-shadow: 0 14px 28px rgba(2, 6, 23, 0.5);
 }
