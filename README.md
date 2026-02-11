@@ -1,13 +1,19 @@
 # Monitoring Dashboard (Vercel Ready)
 
-Dashboard interaktif bergaya admin panel (inspirasi TailAdmin table) yang membaca data langsung dari Google Spreadsheet tanpa API backend.
+Dashboard interaktif bergaya admin panel (inspirasi TailAdmin table) dengan backend Express untuk API data dan Ask AI.
 
 ## File utama
 
-- `index.html` UI dashboard
-- `main.css` style custom (tanpa Tailwind)
-- `app.js` logika fetch + transform data + chart
+- `public/index.html` UI dashboard
+- `public/main.css` style custom (tanpa Tailwind)
+- `public/app.js` logika fetch + transform data + chart
+- `public/favicon.svg` favicon dashboard
 - `vercel.json` konfigurasi deploy Vercel
+- `api/ask.js` endpoint Ask AI (Express serverless)
+- `api/data.js` endpoint data dashboard (backend proxy ke spreadsheet)
+- `api/_lib/sheet.js` parser + normalisasi data spreadsheet untuk backend AI
+- `api/_lib/ask-service.js` service prompt + call Gemini
+- `server.js` entrypoint local Express
 
 ## Struktur Dashboard
 
@@ -24,12 +30,10 @@ Dashboard interaktif bergaya admin panel (inspirasi TailAdmin table) yang membac
 
 ## Konfigurasi spreadsheet
 
-Edit di `app.js`:
+Set URL spreadsheet lewat environment variable backend:
 
-```js
-const SHEET_CONFIG = {
-  csvUrl: "YOUR_GOOGLE_SHEET_CSV_EXPORT_URL"
-};
+```env
+SHEET_CSV_URL=YOUR_GOOGLE_SHEET_CSV_EXPORT_URL
 ```
 
 ## Syarat akses Google Sheet
@@ -42,20 +46,79 @@ Sheet harus bisa diakses publik, minimal:
 
 Kalau tidak publik, browser akan gagal ambil CSV dari Google Sheets.
 
-## Local preview (opsional)
+## Local preview
 
-Bisa langsung pakai server statis sederhana:
+Project ini butuh backend API (`/api/data`, `/api/ask`), jadi jalankan dengan Express:
 
 ```bash
-npx serve .
+npm install
+npm run dev
 ```
 
 Lalu buka `http://localhost:3000`.
+
+## Ask AI setup (baru)
+
+Project ini sekarang punya endpoint:
+- `GET /api/data` untuk data dashboard
+- `POST /api/ask` untuk tanya data dashboard via Gemini
+
+1. Install dependency:
+
+```bash
+npm install
+```
+
+2. Buat `.env` dari `.env.example`, lalu isi:
+
+```env
+GEMINI_API_KEY=...
+SHEET_CSV_URL=...
+GEMINI_MODEL=gemini-2.5-flash
+PORT=3000
+```
+
+3. Jalankan local server (Express):
+
+```bash
+npm run dev
+```
+
+4. Test cepat:
+
+```bash
+curl -X POST http://localhost:3000/api/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Aplikasi high critical apa saja?","scope":{"quickFilter":"all","analyticsView":"all","search":""}}'
+```
+
+Response sukses:
+
+```json
+{
+  "ok": true,
+  "answer": "...",
+  "evidence": ["...", "..."],
+  "meta": {
+    "model": "gemini-2.5-flash",
+    "rowsUsed": 12,
+    "totalRows": 30
+  }
+}
+```
 
 ## Deploy ke Vercel
 
 1. Push folder ini ke GitHub/GitLab/Bitbucket.
 2. Import project ke Vercel.
-3. Deploy tanpa setting tambahan.
+3. Set Environment Variables di Vercel Project:
+   - `GEMINI_API_KEY`
+   - `SHEET_CSV_URL`
+   - `GEMINI_MODEL` (opsional, default `gemini-2.5-flash`)
+4. Deploy.
 
-Selesai, dashboard otomatis memuat data dari Google Sheet.
+Catatan:
+- Routing production sudah diatur lewat `vercel.json`:
+  - `/` -> `public/index.html`
+  - `/api/*` -> serverless functions di `api/*`
+  - static asset -> `public/*`

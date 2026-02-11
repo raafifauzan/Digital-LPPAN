@@ -1,6 +1,5 @@
-const SHEET_CONFIG = {
-  csvUrl:
-    "https://docs.google.com/spreadsheets/d/1QUxwm-wu5hZMSlxqq9f0R2SImg-r5hT7IhdmudSRGNM/export?format=csv&gid=835111890"
+const API_CONFIG = {
+  dataUrl: "/api/data"
 };
 
 const STATUS_BUCKETS = ["Active", "On Progress", "Unknown"];
@@ -18,6 +17,7 @@ const CHART_NEUTRAL = "#e2e8f0";
 const FETCH_TIMEOUT_MS = 12000;
 const FETCH_RETRY_COUNT = 2;
 const FETCH_RETRY_BASE_DELAY_MS = 700;
+const DARK_THEME_LOCKED = true;
 
 const state = {
   allApps: [],
@@ -29,11 +29,20 @@ const state = {
   filterIncompleteData: false,
   currentPage: 1,
   pageSize: 5,
-  isLoading: false
+  isLoading: false,
+  askAi: {
+    isOpen: false,
+    isSending: false,
+    messages: [
+      { role: "assistant", text: "Tanyakan sesuatu tentang data dashboard ini.", timestamp: Date.now() }
+    ]
+  }
 };
 
 const els = {
   refreshBtn: document.getElementById("refreshBtn"),
+  themeToggle: document.getElementById("themeToggle"),
+  themeToggleIcon: document.getElementById("themeToggleIcon"),
   projectSearch: document.getElementById("projectSearch"),
   errorText: document.getElementById("errorText"),
   overviewSubtitle: document.getElementById("overviewSubtitle"),
@@ -69,7 +78,16 @@ const els = {
 
   monitoringTableBody: document.getElementById("monitoringTableBody"),
   monitoringMobileList: document.getElementById("monitoringMobileList"),
-  insightSummary: document.getElementById("insightSummary")
+  insightSummary: document.getElementById("insightSummary"),
+
+  askAiFab: document.getElementById("askAiFab"),
+  askAiPanel: document.getElementById("askAiPanel"),
+  askAiCloseBtn: document.getElementById("askAiCloseBtn"),
+  askAiForm: document.getElementById("askAiForm"),
+  askAiInput: document.getElementById("askAiInput"),
+  askAiSubmitBtn: document.getElementById("askAiSubmitBtn"),
+  askAiError: document.getElementById("askAiError"),
+  askAiMessages: document.getElementById("askAiMessages")
 };
 
 let mainDistributionChart;
@@ -86,13 +104,68 @@ let lastCursorBgUpdate = 0;
 let lastCursorX = 12;
 let lastCursorY = 6;
 
+function isDarkThemeEnabled() {
+  return document.documentElement.classList.contains("theme-dark");
+}
+
+function syncThemeToggleUi() {
+  const dark = isDarkThemeEnabled();
+  if (els.themeToggleIcon) {
+    els.themeToggleIcon.textContent = dark ? "light_mode" : "dark_mode";
+  }
+  if (els.themeToggle) {
+    if (DARK_THEME_LOCKED) {
+      els.themeToggle.setAttribute("aria-label", "Dark mode is temporarily locked");
+      els.themeToggle.setAttribute("title", "Dark mode is temporarily locked");
+      els.themeToggle.disabled = true;
+      els.themeToggle.classList.add("opacity-60", "cursor-not-allowed");
+      return;
+    }
+    els.themeToggle.disabled = false;
+    els.themeToggle.classList.remove("opacity-60", "cursor-not-allowed");
+    els.themeToggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+    els.themeToggle.setAttribute("title", dark ? "Light Mode" : "Dark Mode");
+  }
+}
+
+function applyTheme(mode) {
+  if (DARK_THEME_LOCKED) {
+    document.documentElement.classList.remove("theme-dark");
+    try {
+      localStorage.setItem("dashboard-theme", "light");
+    } catch (_error) {
+      // noop
+    }
+    applyChartThemeDefaults();
+    reflowCharts();
+    syncThemeToggleUi();
+    return;
+  }
+  const useDark = mode === "dark";
+  document.documentElement.classList.toggle("theme-dark", useDark);
+  try {
+    localStorage.setItem("dashboard-theme", useDark ? "dark" : "light");
+  } catch (_error) {
+    // noop
+  }
+  applyChartThemeDefaults();
+  reflowCharts();
+  syncThemeToggleUi();
+}
+
+function applyChartThemeDefaults() {
+  if (!window.Chart) return;
+  const dark = isDarkThemeEnabled();
+  Chart.defaults.color = dark ? "#9fb0c6" : "#64748b";
+  Chart.defaults.plugins.tooltip.backgroundColor = dark ? "rgba(13, 22, 40, 0.95)" : "rgba(255, 255, 255, 0.9)";
+  Chart.defaults.plugins.tooltip.titleColor = dark ? "#f1f5f9" : "#0f172a";
+  Chart.defaults.plugins.tooltip.bodyColor = dark ? "#d4deec" : "#334155";
+  Chart.defaults.plugins.tooltip.borderColor = dark ? "rgba(71, 85, 105, 0.55)" : "rgba(148, 163, 184, 0.35)";
+}
+
 if (window.Chart) {
   Chart.defaults.font.family = '"Plus Jakarta Sans", "Helvetica", "Arial", sans-serif';
-  Chart.defaults.color = "#64748b";
-  Chart.defaults.plugins.tooltip.backgroundColor = "rgba(255, 255, 255, 0.9)";
-  Chart.defaults.plugins.tooltip.titleColor = "#0f172a";
-  Chart.defaults.plugins.tooltip.bodyColor = "#334155";
-  Chart.defaults.plugins.tooltip.borderColor = "rgba(148, 163, 184, 0.35)";
+  applyChartThemeDefaults();
   Chart.defaults.plugins.tooltip.borderWidth = 1;
   Chart.defaults.plugins.tooltip.cornerRadius = 12;
   Chart.defaults.plugins.tooltip.padding = 10;
@@ -168,10 +241,6 @@ function normalize(text) {
     .trim();
 }
 
-function isEmpty(value) {
-  return !String(value ?? "").trim();
-}
-
 function escapeHtml(text) {
   return String(text ?? "")
     .replace(/&/g, "&amp;")
@@ -186,128 +255,11 @@ function displayText(value) {
   return normalize(text) === "unknown" || !text ? "-" : text;
 }
 
-function compactAppName(name) {
-  const raw = String(name ?? "").trim();
-  const normalized = normalize(raw);
-
-  if (
-    normalized ===
-    normalize("Dashboard Action & Follow Up Status of Audit / Non Audit Activity and WBS Activity")
-  ) {
-    return "Dashboard Status Audit & WBS";
-  }
-
-  return raw;
-}
-
-function parseCSV(csv) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < csv.length; i += 1) {
-    const char = csv[i];
-    const next = csv[i + 1];
-
-    if (char === '"' && inQuotes && next === '"') {
-      field += '"';
-      i += 1;
-    } else if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      row.push(field);
-      field = "";
-    } else if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (field || row.length) {
-        row.push(field);
-        rows.push(row);
-      }
-      row = [];
-      field = "";
-      if (char === "\r" && next === "\n") i += 1;
-    } else {
-      field += char;
-    }
-  }
-
-  if (field || row.length) {
-    row.push(field);
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-function findHeaderIndex(headers, aliases) {
-  const normalizedHeaders = headers.map((header) => normalize(header));
-  for (const alias of aliases) {
-    const idx = normalizedHeaders.indexOf(normalize(alias));
-    if (idx >= 0) return idx;
-  }
-  return -1;
-}
-
-function mapStatus(raw) {
-  const value = normalize(raw);
-  if (value === "active") return "Active";
-  if (value.includes("progress")) return "On Progress";
-  return "Unknown";
-}
-
-function mapCriticality(raw) {
-  const value = normalize(raw);
-  if (value === "high") return "High";
-  if (value === "medium") return "Medium";
-  if (value === "low") return "Low";
-  return "Unknown";
-}
-
-function mapMaturity(raw) {
-  const value = normalize(raw);
-  const match = value.match(/level\s*([1-5])/);
-  if (!match) return "Unknown";
-  return `Level ${match[1]}`;
-}
-
-function mapCategory(raw) {
-  const value = normalize(raw);
-  if (value.includes("core") || value.includes("operational") || value.includes("compliance")) return "Core";
-  if (value.includes("decision")) return "Decision Support";
-  if (value.includes("support")) return "Support";
-  if (value.includes("product")) return "Product";
-  return "Unknown";
-}
-
-function mapRoadmap(raw) {
-  const value = normalize(raw);
-  if (value.includes("need enhancement")) return "Need Enhancement";
-  if (value.includes("optimal")) return "Optimal";
-  return "Unknown";
-}
-
 function splitDataOwners(raw) {
   return String(raw ?? "")
     .split(/[;,/|\n]+|\s+dan\s+/i)
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function mapImplementationYear(raw) {
-  const text = String(raw ?? "").trim();
-  const match = text.match(/\b(19|20)\d{2}\b/);
-  return match ? match[0] : "Unknown";
-}
-
-function isMandatoryComplete(app) {
-  return (
-    app.status !== "Unknown" &&
-    app.category !== "Unknown" &&
-    app.criticality !== "Unknown" &&
-    app.maturity !== "Unknown" &&
-    app.roadmap !== "Unknown" &&
-    (!isEmpty(app.businessOwner) || !isEmpty(app.dataOwner))
-  );
 }
 
 function badgeClass(type, value) {
@@ -393,42 +345,6 @@ function getDashboardRows() {
 
 function getChartRows() {
   return getDashboardRows().filter((app) => app.mandatoryComplete);
-}
-
-function buildAppModel(csvRows) {
-  const headers = csvRows[0] || [];
-  const index = {
-    name: findHeaderIndex(headers, ["nama aplikasi", "application name"]),
-    status: findHeaderIndex(headers, ["status"]),
-    category: findHeaderIndex(headers, ["system category", "category"]),
-    criticality: findHeaderIndex(headers, ["level criticality", "criticality"]),
-    maturity: findHeaderIndex(headers, ["level maturity", "maturity"]),
-    roadmap: findHeaderIndex(headers, ["roadmap status", "roadmap"]),
-    implementationYear: findHeaderIndex(headers, ["tahun implementasi", "implementation year", "year implementation"]),
-    businessOwner: findHeaderIndex(headers, ["bussiness process owner (bpo)", "business process owner (bpo)", "business owner"]),
-    dataOwner: findHeaderIndex(headers, ["data owner"])
-  };
-
-  return csvRows
-    .slice(1)
-    .map((row) => {
-      const app = {
-        name: compactAppName(row[index.name]),
-        status: mapStatus(row[index.status]),
-        category: mapCategory(row[index.category]),
-        criticality: mapCriticality(row[index.criticality]),
-        maturity: mapMaturity(row[index.maturity]),
-        roadmap: mapRoadmap(row[index.roadmap]),
-        implementationYear: mapImplementationYear(row[index.implementationYear]),
-        businessOwner: String(row[index.businessOwner] ?? "").trim(),
-        dataOwner: String(row[index.dataOwner] ?? "").trim()
-      };
-
-      app.mandatoryComplete = isMandatoryComplete(app);
-      app.needsImprovement = app.roadmap === "Need Enhancement";
-      return app;
-    })
-    .filter((app) => !isEmpty(app.name));
 }
 
 function renderKPIs() {
@@ -925,6 +841,166 @@ function renderActiveFiltersText() {
   els.activeFiltersText.textContent = `Active filters: ${filters.length ? filters.join(", ") : "All Data"}`;
 }
 
+function getQuickFilterValueFromState() {
+  if (state.filterActiveOnly) return "active";
+  if (state.filterHighCritical) return "high";
+  if (state.filterNeedEnhancement) return "enhancement";
+  if (state.filterIncompleteData) return "incomplete";
+  return "all";
+}
+
+function buildAskAiScopeFromState() {
+  return {
+    quickFilter: getQuickFilterValueFromState(),
+    analyticsView: state.analyticsView || "all",
+    search: String(state.projectSearch || "").trim().slice(0, 120)
+  };
+}
+
+function setAskAiPanelOpen(isOpen) {
+  state.askAi.isOpen = Boolean(isOpen);
+  if (!els.askAiPanel || !els.askAiFab) return;
+
+  els.askAiPanel.classList.toggle("hidden", !state.askAi.isOpen);
+  els.askAiFab.setAttribute("aria-expanded", String(state.askAi.isOpen));
+
+  if (state.askAi.isOpen && els.askAiInput && !state.askAi.isSending) {
+    setTimeout(() => {
+      els.askAiInput.focus();
+    }, 0);
+  }
+}
+
+function setAskAiError(message) {
+  if (!els.askAiError) return;
+  const text = String(message || "").trim();
+  els.askAiError.textContent = text;
+  els.askAiError.classList.toggle("hidden", !text);
+}
+
+function setAskAiSending(isSending) {
+  state.askAi.isSending = Boolean(isSending);
+  if (els.askAiInput) {
+    els.askAiInput.disabled = state.askAi.isSending;
+  }
+  if (els.askAiSubmitBtn) {
+    els.askAiSubmitBtn.disabled = state.askAi.isSending;
+    els.askAiSubmitBtn.textContent = state.askAi.isSending ? "Mengirim..." : "Kirim";
+  }
+}
+
+function normalizeAskAiAnswer(answerRaw) {
+  const text = String(answerRaw || "").trim();
+  if (!text) return "Data tidak ditemukan pada dataset yang tersedia.";
+
+  if (text.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed.answer === "string" && parsed.answer.trim()) {
+        return parsed.answer.trim();
+      }
+    } catch (_error) {
+      // Keep fallback below.
+    }
+  }
+
+  return text;
+}
+
+function renderAskAiMessages() {
+  if (!els.askAiMessages) return;
+  els.askAiMessages.innerHTML = state.askAi.messages
+    .map((message) => {
+      const isUser = message.role === "user";
+      const wrapperClass = isUser ? "ml-auto max-w-[85%]" : "max-w-[85%]";
+      const bubbleClass = isUser
+        ? "rounded-2xl bg-brand-600 px-3 py-2 text-sm text-white"
+        : "rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700";
+      const time = new Date(Number(message.timestamp) || Date.now()).toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      const timeClass = isUser ? "mt-1 text-right text-[11px] text-slate-500" : "mt-1 text-[11px] text-slate-500";
+      return `<div class="${wrapperClass}"><div class="${bubbleClass}">${escapeHtml(message.text)}</div><div class="${timeClass}">${escapeHtml(
+        time
+      )}</div></div>`;
+    })
+    .join("");
+
+  els.askAiMessages.scrollTop = els.askAiMessages.scrollHeight;
+}
+
+function pushAskAiMessage(role, text) {
+  const cleanText = String(text || "").trim();
+  if (!cleanText) return;
+  state.askAi.messages.push({ role, text: cleanText, timestamp: Date.now() });
+  if (state.askAi.messages.length > 20) {
+    state.askAi.messages = state.askAi.messages.slice(-20);
+  }
+  renderAskAiMessages();
+}
+
+async function submitAskAiQuestion(event) {
+  event.preventDefault();
+  if (!els.askAiInput) return;
+
+  const question = String(els.askAiInput.value || "").trim();
+  if (question.length < 3) {
+    setAskAiError("Pertanyaan minimal 3 karakter.");
+    return;
+  }
+  if (question.length > 500) {
+    setAskAiError("Pertanyaan maksimal 500 karakter.");
+    return;
+  }
+
+  setAskAiError("");
+  pushAskAiMessage("user", question);
+  if (els.askAiInput) {
+    els.askAiInput.value = "";
+  }
+  setAskAiSending(true);
+
+  try {
+    const payload = {
+      question,
+      scope: buildAskAiScopeFromState()
+    };
+
+    const response = await fetch("/api/ask", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    let result = {};
+    try {
+      result = await response.json();
+    } catch (_error) {
+      result = {};
+    }
+
+    if (!response.ok || !result?.ok) {
+      const serverError = String(result?.error || "").trim();
+      if (response.status === 400) {
+        throw new Error(serverError || "Input tidak valid.");
+      }
+      if (response.status === 405) {
+        throw new Error("Endpoint AI tidak mendukung method ini.");
+      }
+      throw new Error(serverError || "AI service sedang tidak tersedia.");
+    }
+
+    pushAskAiMessage("assistant", normalizeAskAiAnswer(result.answer));
+  } catch (error) {
+    setAskAiError(error?.message || "Gagal memproses pertanyaan.");
+  } finally {
+    setAskAiSending(false);
+  }
+}
+
 function resetAllFilters() {
   state.projectSearch = "";
   state.currentPage = 1;
@@ -1181,7 +1257,7 @@ function setLoadingState(isLoading) {
   }
 }
 
-async function fetchCsvWithRetry(url) {
+async function fetchDashboardRowsWithRetry(url) {
   let lastError;
 
   for (let attempt = 0; attempt <= FETCH_RETRY_COUNT; attempt += 1) {
@@ -1197,7 +1273,11 @@ async function fetchCsvWithRetry(url) {
       clearTimeout(timeoutId);
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.text();
+      const payload = await response.json();
+      if (!payload?.ok || !Array.isArray(payload?.rows)) {
+        throw new Error(payload?.error || "Invalid data payload.");
+      }
+      return payload.rows;
     } catch (error) {
       clearTimeout(timeoutId);
 
@@ -1231,9 +1311,8 @@ async function loadData() {
   setLoadingState(true);
 
   try {
-    const csvText = await fetchCsvWithRetry(SHEET_CONFIG.csvUrl);
-    const rows = parseCSV(csvText);
-    state.allApps = buildAppModel(rows);
+    const rows = await fetchDashboardRowsWithRetry(API_CONFIG.dataUrl);
+    state.allApps = rows;
 
     if (!state.allApps.length) throw new Error("No readable rows found in spreadsheet.");
 
@@ -1248,6 +1327,11 @@ async function loadData() {
 
 function bindEvents() {
   els.refreshBtn.addEventListener("click", loadData);
+  if (els.themeToggle && !DARK_THEME_LOCKED) {
+    els.themeToggle.addEventListener("click", () => {
+      applyTheme(isDarkThemeEnabled() ? "light" : "dark");
+    });
+  }
 
   if (els.projectSearch) {
     els.projectSearch.addEventListener("input", (event) => {
@@ -1329,6 +1413,9 @@ function bindEvents() {
     if (event.key !== "Escape") return;
     closeDropdown(els.quickFilterMenu, els.quickFilterBtn);
     closeDropdown(els.analyticsViewMenu, els.analyticsViewBtn);
+    if (state.askAi.isOpen) {
+      setAskAiPanelOpen(false);
+    }
   });
 
   setCustomDropdownValue(
@@ -1350,6 +1437,41 @@ function bindEvents() {
   if (els.analyticsView) {
     state.analyticsView = els.analyticsView.value || "all";
   }
+
+  if (els.askAiFab) {
+    els.askAiFab.addEventListener("click", () => {
+      setAskAiPanelOpen(!state.askAi.isOpen);
+    });
+  }
+
+  if (els.askAiCloseBtn) {
+    els.askAiCloseBtn.addEventListener("click", () => {
+      setAskAiPanelOpen(false);
+    });
+  }
+
+  if (els.askAiForm) {
+    els.askAiForm.addEventListener("submit", submitAskAiQuestion);
+  }
+
+  if (els.askAiInput && els.askAiForm) {
+    els.askAiInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+      event.preventDefault();
+      if (!state.askAi.isSending) {
+        els.askAiForm.requestSubmit();
+      }
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!state.askAi.isOpen || !els.askAiPanel || !els.askAiFab) return;
+    const clickedInsidePanel = els.askAiPanel.contains(event.target);
+    const clickedFab = els.askAiFab.contains(event.target);
+    if (!clickedInsidePanel && !clickedFab) {
+      setAskAiPanelOpen(false);
+    }
+  });
 
   els.pageButtons.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-page]");
@@ -1388,6 +1510,10 @@ function bindEvents() {
       });
     });
   }
+
+  setAskAiPanelOpen(false);
+  renderAskAiMessages();
+  syncThemeToggleUi();
 }
 
 bindEvents();

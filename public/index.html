@@ -34,6 +34,17 @@
         }
       };
     </script>
+    <script>
+      (() => {
+        // Dark theme is temporarily locked for release; force light mode.
+        document.documentElement.classList.remove("theme-dark");
+        try {
+          localStorage.setItem("dashboard-theme", "light");
+        } catch (_error) {
+          // noop
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="main.css" />
   </head>
   <body class="overflow-x-hidden bg-slate-100 font-sans text-slate-800">
@@ -302,6 +313,80 @@
         </div>
       </main>
     </div>
+
+    <button
+      id="themeToggle"
+      type="button"
+      aria-label="Toggle dark mode"
+      title="Dark mode is temporarily locked"
+      disabled
+      class="fixed bottom-5 left-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+    >
+      <span id="themeToggleIcon" class="material-symbols-outlined text-[22px]">dark_mode</span>
+    </button>
+
+    <button
+      id="askAiFab"
+      type="button"
+      aria-label="Open Ask AI"
+      class="fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-full bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+    >
+      <span class="material-symbols-outlined text-[20px]">auto_awesome</span>
+      <span>Ask AI</span>
+    </button>
+
+    <section
+      id="askAiPanel"
+      class="fixed inset-x-3 bottom-20 z-50 hidden max-h-[78vh] w-auto md:inset-x-auto md:right-5 md:w-[430px]"
+      aria-label="Ask AI Panel"
+    >
+      <article class="flex max-h-[78vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.2)]">
+        <header class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">Ask AI</h3>
+            <p class="text-xs text-slate-500">Jawaban hanya dari data dashboard</p>
+          </div>
+          <button
+            id="askAiCloseBtn"
+            type="button"
+            aria-label="Close Ask AI"
+            class="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+          >
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </header>
+
+        <div class="space-y-3 overflow-y-auto px-4 py-4">
+          <p id="askAiError" class="hidden rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700"></p>
+          <div id="askAiMessages" class="space-y-2">
+            <div class="max-w-[85%] rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              Tanyakan sesuatu tentang data dashboard ini.
+            </div>
+          </div>
+        </div>
+
+        <form id="askAiForm" class="border-t border-slate-200 bg-white p-3">
+          <label for="askAiInput" class="sr-only">Ask AI question</label>
+          <textarea
+            id="askAiInput"
+            rows="3"
+            maxlength="500"
+            placeholder="Contoh: Aplikasi mana yang high critical dan butuh enhancement?"
+            class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          ></textarea>
+          <div class="mt-2 flex items-center justify-between gap-2">
+            <p class="text-[11px] text-slate-500">Powered by Gemini 2.5 Flash</p>
+            <button
+              id="askAiSubmitBtn"
+              type="submit"
+              class="rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Kirim
+            </button>
+          </div>
+        </form>
+      </article>
+    </section>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <script src="app.js"></script>
