@@ -907,6 +907,50 @@ function normalizeAskAiAnswer(answerRaw) {
   return text;
 }
 
+function formatAssistantMarkdown(text) {
+  const escaped = escapeHtml(String(text || ""));
+  const lines = escaped.split(/\r?\n/);
+  const hasList = lines.some((line) => /^\s*[-*]\s+/.test(line));
+
+  let body = escaped
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+  if (hasList) {
+    const chunks = [];
+    let inList = false;
+    lines.forEach((line) => {
+      const listMatch = line.match(/^\s*[-*]\s+(.+)$/);
+      if (listMatch) {
+        if (!inList) {
+          chunks.push("<ul>");
+          inList = true;
+        }
+        let item = listMatch[1]
+          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+          .replace(/`([^`]+)`/g, "<code>$1</code>");
+        chunks.push(`<li>${item}</li>`);
+      } else {
+        if (inList) {
+          chunks.push("</ul>");
+          inList = false;
+        }
+        const paragraph = line
+          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .trim();
+        if (paragraph) chunks.push(`<p>${paragraph}</p>`);
+      }
+    });
+    if (inList) chunks.push("</ul>");
+    body = chunks.join("");
+  } else {
+    body = body.replace(/\n/g, "<br>");
+  }
+
+  return body;
+}
+
 function renderAskAiMessages() {
   if (!els.askAiMessages) return;
   els.askAiMessages.innerHTML = state.askAi.messages
@@ -921,7 +965,8 @@ function renderAskAiMessages() {
         minute: "2-digit"
       });
       const timeClass = isUser ? "mt-1 text-right text-[11px] text-slate-500" : "mt-1 text-[11px] text-slate-500";
-      return `<div class="${wrapperClass}"><div class="${bubbleClass}">${escapeHtml(message.text)}</div><div class="${timeClass}">${escapeHtml(
+      const content = isUser ? escapeHtml(message.text) : formatAssistantMarkdown(message.text);
+      return `<div class="${wrapperClass}"><div class="${bubbleClass} ask-ai-message">${content}</div><div class="${timeClass}">${escapeHtml(
         time
       )}</div></div>`;
     })
