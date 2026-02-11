@@ -129,10 +129,10 @@ tbody tr:hover {
 
 @keyframes askAiGradientShift {
   0% {
-    background-position: 0% 50%;
+    background-position: 12% 50%;
   }
   100% {
-    background-position: 100% 50%;
+    background-position: 88% 50%;
   }
 }
 
@@ -160,7 +160,7 @@ tbody tr:hover {
   border: 1px solid rgba(187, 247, 208, 0.7);
   background: linear-gradient(120deg, #0f7d3f 0%, #16a34a 35%, #0ea5a4 70%, #16a34a 100%);
   background-size: 220% 220%;
-  animation: askAiGradientShift 3.6s linear infinite, askAiHalo 2.4s ease-in-out infinite;
+  animation: askAiGradientShift 4.8s ease-in-out infinite alternate, askAiHalo 2.4s ease-in-out infinite;
 }
 
 .ask-ai-fab:hover {
