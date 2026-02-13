@@ -10,7 +10,9 @@ Target pembelajaran:
 
 ## Live (Vercel)
 - Dashboard: `https://digital-lppan.vercel.app`
-- Health: `https://digital-lppan.vercel.app/api/health`
+- API:
+  - `GET https://digital-lppan.vercel.app/api/data`
+  - `POST https://digital-lppan.vercel.app/api/ask`
 
 ## Fitur Utama
 ### 1) Dashboard Monitoring (Frontend)
