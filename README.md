@@ -8,6 +8,10 @@ Target pembelajaran:
 - Membuat backend ringan untuk proxy data + prompt orchestration.
 - Membangun UI chat yang usable (timestamp, enter-to-send, styling ringan).
 
+## Live (Vercel)
+- Dashboard: `https://digital-lppan.vercel.app`
+- Health: `https://digital-lppan.vercel.app/api/health`
+
 ## Fitur Utama
 ### 1) Dashboard Monitoring (Frontend)
 - KPI ringkas (Total Apps, Active, Need Enhancement, Data Completeness)
