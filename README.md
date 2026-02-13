@@ -1,76 +1,69 @@
-# Monitoring Dashboard (Vercel Ready)
+# Final Project Submission: AI Productivity & AI API Integration for Developers
 
-Dashboard interaktif bergaya admin panel (inspirasi TailAdmin table) dengan backend Express untuk API data dan Ask AI.
+## Overview
+Project ini adalah **dashboard monitoring digitalisasi** (admin-style) yang menampilkan KPI, chart, dan table dari data Google Spreadsheet, lalu menambahkan fitur **AI Chatbot (Ask AI)** untuk tanya jawab berbasis data dashboard menggunakan **Gemini API**.
 
-## File utama
+Target pembelajaran:
+- Integrasi AI API secara aman (API key tidak ada di frontend).
+- Membuat backend ringan untuk proxy data + prompt orchestration.
+- Membangun UI chat yang usable (timestamp, enter-to-send, styling ringan).
 
-- `public/index.html` UI dashboard
-- `public/main.css` style custom (tanpa Tailwind)
-- `public/app.js` logika fetch + transform data + chart
-- `public/favicon.svg` favicon dashboard
-- `vercel.json` konfigurasi deploy Vercel
-- `api/ask.js` endpoint Ask AI (Express serverless)
-- `api/data.js` endpoint data dashboard (backend proxy ke spreadsheet)
-- `api/_lib/sheet.js` parser + normalisasi data spreadsheet untuk backend AI
-- `api/_lib/ask-service.js` service prompt + call Gemini
-- `server.js` entrypoint local Express
+## Fitur Utama
+### 1) Dashboard Monitoring (Frontend)
+- KPI ringkas (Total Apps, Active, Need Enhancement, Data Completeness)
+- Chart: distribusi kategori, criticality, maturity, status, data owner, implementation year
+- Tabel monitoring + filter + pagination
+- Data quality: menandai data mandatory lengkap vs incomplete
 
-## Struktur Dashboard
+### 2) Ask AI Chatbot (Gemini)
+- Chatbot di dalam dashboard (floating widget)
+- Pertanyaan user dijawab **hanya berdasarkan dataset dashboard** (anti-halu)
+- Mendukung formatting ringan dari output AI:
+  - `**bold**`
+  - bullet list `- item`
+  - inline code `` `text` ``
+- Timestamp per message
+- Enter untuk kirim, Shift+Enter untuk baris baru
 
-- Page 1: `Digital Portfolio Overview (Data Exposure)`
-- Page 2: `Digitalization Monitoring & Control`
+Catatan:
+- Toggle Dark Mode ada sebagai placeholder tapi sementara **dikunci** untuk rilis (tidak bisa di-toggle).
 
-## Fitur interaktif
+## Arsitektur Singkat
+1. Frontend memuat data dari backend: `GET /api/data`
+2. Frontend mengirim pertanyaan ke backend: `POST /api/ask`
+3. Backend:
+   - fetch & normalize data spreadsheet dari `SHEET_CSV_URL`
+   - apply filter scope (quick filter + category + search)
+   - call Gemini (`@google/genai`) dengan guardrail data-only
+4. Backend mengembalikan jawaban ke UI chat
 
-- Page switching: Overview vs Monitoring & Control
-- KPI + distribusi data dengan eksposur `Unknown` eksplisit
-- Digitalization score (0-100), klasifikasi Mature/Developing/At Risk
-- Monitoring action table dengan filter: `High criticality only`, `At risk only`, `Incomplete data only`
-- Data quality monitoring (mandatory completeness + missing/inconsistent list)
-
-## Konfigurasi spreadsheet
-
-Set URL spreadsheet lewat environment variable backend:
-
-```env
-SHEET_CSV_URL=YOUR_GOOGLE_SHEET_CSV_EXPORT_URL
+```
+Browser (public/*)
+  -> GET /api/data  -> fetch CSV spreadsheet -> normalize -> rows
+  -> POST /api/ask  -> fetch CSV -> scope -> prompt -> Gemini -> answer
 ```
 
-## Syarat akses Google Sheet
+## Tech Stack
+- Frontend: HTML + Vanilla JS + Tailwind CDN + Chart.js
+- Backend: Node.js + Express
+- AI SDK: `@google/genai`
+- Hosting: Vercel (static + serverless API routes)
+- Data source: Google Spreadsheet (CSV export)
 
-Sheet harus bisa diakses publik, minimal:
+## Struktur Folder
+- `public/` UI dashboard (HTML/CSS/JS)
+- `api/` API routes untuk Vercel (`/api/data`, `/api/ask`)
+- `api/_lib/` helper parsing & Ask AI service
+- `server.js` local dev server (Express)
+- `vercel.json` routing + caching header
 
-1. Buka Google Sheets.
-2. Klik **Share**.
-3. Ubah akses ke **Anyone with the link** (Viewer), atau gunakan **Publish to web**.
-
-Kalau tidak publik, browser akan gagal ambil CSV dari Google Sheets.
-
-## Local preview
-
-Project ini butuh backend API (`/api/data`, `/api/ask`), jadi jalankan dengan Express:
-
-```bash
-npm install
-npm run dev
-```
-
-Lalu buka `http://localhost:3000`.
-
-## Ask AI setup (baru)
-
-Project ini sekarang punya endpoint:
-- `GET /api/data` untuk data dashboard
-- `POST /api/ask` untuk tanya data dashboard via Gemini
-
-1. Install dependency:
-
+## Setup Lokal
+1. Install:
 ```bash
 npm install
 ```
 
-2. Buat `.env` dari `.env.example`, lalu isi:
-
+2. Buat `.env` (jangan di-commit) dan isi:
 ```env
 GEMINI_API_KEY=...
 SHEET_CSV_URL=...
@@ -78,47 +71,29 @@ GEMINI_MODEL=gemini-2.5-flash
 PORT=3000
 ```
 
-3. Jalankan local server (Express):
-
+3. Run:
 ```bash
 npm run dev
 ```
 
-4. Test cepat:
-
-```bash
-curl -X POST http://localhost:3000/api/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question":"Aplikasi high critical apa saja?","scope":{"quickFilter":"all","analyticsView":"all","search":""}}'
-```
-
-Response sukses:
-
-```json
-{
-  "ok": true,
-  "answer": "...",
-  "evidence": ["...", "..."],
-  "meta": {
-    "model": "gemini-2.5-flash",
-    "rowsUsed": 12,
-    "totalRows": 30
-  }
-}
-```
+4. Open:
+- Dashboard: `http://localhost:3000`
+- Health: `http://localhost:3000/api/health`
 
 ## Deploy ke Vercel
-
-1. Push folder ini ke GitHub/GitLab/Bitbucket.
-2. Import project ke Vercel.
-3. Set Environment Variables di Vercel Project:
+1. Push repo ke GitHub.
+2. Import project di Vercel.
+3. Set Environment Variables:
    - `GEMINI_API_KEY`
    - `SHEET_CSV_URL`
-   - `GEMINI_MODEL` (opsional, default `gemini-2.5-flash`)
-4. Deploy.
+   - `GEMINI_MODEL` (opsional)
+4. Redeploy.
 
-Catatan:
-- Routing production sudah diatur lewat `vercel.json`:
-  - `/` -> `public/index.html`
-  - `/api/*` -> serverless functions di `api/*`
-  - static asset -> `public/*`
+## Keamanan (Credential Safety)
+- API key Gemini disimpan di **Vercel Environment Variables** dan `.env` lokal.
+- `.env` sudah di-ignore (`.gitignore`) agar tidak ikut ter-push.
+- Frontend hanya call endpoint internal `/api/*` (tidak ada API key di browser).
+
+## Limitation
+- Free tier Gemini punya limit request harian/menit. Saat habis bisa muncul error 429 (quota).
+- Spreadsheet harus bisa diakses publik (Viewer / Publish to web) agar backend bisa fetch CSV.
